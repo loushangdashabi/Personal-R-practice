@@ -228,4 +228,42 @@ task=tsk("zoo")
 learner=lrn("classif.rpart",predict_type="prob")
 learner$train(task)
 preds=learner$predict(task)
+autoplot(preds)#amphibian和insect两类比例太小,导致预测中完全没了,所以适当降低阈值
+
+new_tresh=c(0.5,0.5,0.5,0.5,0.4,0.4,0.5)
+names(new_tresh)=task$class_names
+preds$set_threshold(new_tresh)
 autoplot(preds)
+
+#Column Roles
+task_mtcars_small=tsk("mtcars")
+task_mtcars_small$select(c("am","carb"))
+task_mtcars_small$filter(2:4)
+task_mtcars_small$col_roles[c("feature","target")]#查看任务的特征列和目标列
+names(task_mtcars_small$col_roles)#查看所有支持的Column Roles
+#feature target
+#name: 设置行名,用于作图
+#order: $data()返回的数据,以order列排序
+#group: 重抽样时,同一个组的变量会被放入训练集或测试集
+#stratum: 分层
+#weight: 权重,感兴趣的类是少数类,增加权重可以提高性能
+#列也可以没有任何角色,$select()和$filter()就是将列或行忽略,而不是在原数据中删除
+task_mtcars_small$backend#查看被忽略的行列
+#设置roles
+task_mtcars_small$set_col_roles("mpg",roles="target")#设置单一列
+task_mtcars_small$col_roles(c(...))#设置所有列
+#还原unmodified的task
+new_task=task_mtcars_small$clone()
+
+#feature role example
+task_mtcars_small$set_col_roles("cyl",roles="feature")#将被筛选掉的cyl列加回来
+task_mtcars_small$feature_names
+task_mtcars_small$data()
+#weights role example
+task_cancer=tsk("breast_cancer")
+summary(task_cancer$data()$class)
+cancer_data=task_cancer$data()
+cancer_data$weights=ifelse(cancer_data$class=="malignant",2,1)
+task_cancer=as_task_classif(cancer_data,target="class")
+task_cancer$set_col_roles("weights",roles="weight")
+task_cancer$col_roles[c("feature","target","weight")]
