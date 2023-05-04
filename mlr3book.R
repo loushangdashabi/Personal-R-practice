@@ -309,4 +309,6 @@ c=predictions$confusion
 rate=c(TPR=c["M","M"]/sum(c[,"M"]),FPR=c["M","R"]/sum(c[,"R"]),
        TNR=c["R","R"]/sum(c[,"R"]),FNR=c["R","M"]/sum(c[,"M"]))
 predictions$set_threshold(0.7)#提高阈值,减少假阳性,增加假阴性
-predictions$confusion
+c_=predictions$confusion
+rate_=c(TPR=c_["M","M"]/sum(c[,"M"]),FPR=c_["M","R"]/sum(c[,"R"]),
+       TNR=c_["R","R"]/sum(c[,"R"]),FNR=c_["R","M"]/sum(c[,"M"]))
