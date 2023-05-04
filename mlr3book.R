@@ -267,3 +267,46 @@ cancer_data$weights=ifelse(cancer_data$class=="malignant",2,1)
 task_cancer=as_task_classif(cancer_data,target="class")
 task_cancer$set_col_roles("weights",roles="weight")
 task_cancer$col_roles[c("feature","target","weight")]
+#其他column role
+#Clustering：在特征空间中识别相似组的无监督任务
+#Survival: target是到事件发生的时间
+#Density: 一个无监督的任务，根据观察到的数据(作为一个数值向量或一列矩阵样的对象)估计不可检测的潜在概率分布
+
+#其他学习器
+#mlr3包:
+#featureless classifier:"classif.featureless",预测训练集中最常出现的标签
+#featureless regressor:"regr.featureless",预测训练集中目标值的平均值
+#分类树:"classif.rpart"
+#回归树:"regr.rpart"
+
+#mlr3learner包:
+#线性回归:"regr.lm"
+#逻辑回归:"regr.log_reg"
+#惩罚广义线性模型:"regr.glmnet""classif.glmnet"
+#内置优化的惩罚参数:"regr.cv_glmnet""classif.cv_glmnet"
+#核化最近邻回归/分类:"regr.kknn""classif.kknn"
+#高斯回归:"regr.km"
+#线性/多元判别分析:"classif.lda""classif.qda"
+#朴素贝叶斯分析:"classif.naive_bayes"
+#支持向量机:"regr.svm""classif.svm"
+#梯度提升:"regr.xgboost""classif.xgboost"
+#随机森林:"regr.ranger""classif.ranger"
+
+#查看所有学习器
+as.data.table(mlr_learners)
+as.data.table(mlr_learners)[task_type=="regr"]#查看所有回归任务
+as.data.table(mlr_learners)[task_type=="regr"&sapply(predict_types,function(x)"se"%in%x)]#查看支持预测标准差的回归任务
+as.data.table(mlr_learners)[task_type=="classif"&sapply(properties,function(x)"missings"%in%x)]#查看支持缺失值的分类任务
+
+#exercise
+task=tsk("sonar")
+splits=partition(task,ratio=0.8)
+learner=lrn("classif.rpart",predict_type="prob")
+learner$train(task,row_ids=splits$train)
+predictions=learner$predict(task,row_ids=splits$test)
+predictions$score(msr("classif.ce"))
+c=predictions$confusion
+rate=c(TPR=c["M","M"]/sum(c[,"M"]),FPR=c["M","R"]/sum(c[,"R"]),
+       TNR=c["R","R"]/sum(c[,"R"]),FNR=c["R","M"]/sum(c[,"M"]))
+predictions$set_threshold(0.7)#提高阈值,减少假阳性,增加假阴性
+predictions$confusion
