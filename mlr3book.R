@@ -305,9 +305,36 @@ learner=lrn("classif.rpart",predict_type="prob")
 learner$train(task,row_ids=splits$train)
 predictions=learner$predict(task,row_ids=splits$test)
 predictions$score(msr("classif.ce"))
-predictions$score(c(msr("classif.sensitivity"),msr("classif.fpr"),
-                    msr("classif.specificity"),msr("classif.fnr")))
+predictions$score(c(msr("classif.tpr"),msr("classif.fpr"),
+                    msr("classif.tnr"),msr("classif.fnr")))
 
 predictions$set_threshold(0.9)#提高阈值,减少假阳性,增加假阴性
-predictions$score(c(msr("classif.sensitivity"),msr("classif.fpr"),
-                    msr("classif.specificity"),msr("classif.fnr")))
+predictions$score(c(msr("classif.tpr"),msr("classif.fpr"),
+                    msr("classif.tnr"),msr("classif.fnr")))
+
+
+#重抽样
+task=tsk("penguins")
+learner=lrn("classif.rpart",predict_type="prob")
+#选择measurement
+msr_tbl=as.data.table(mlr_measures)
+msr_tbl[1:5,.(key,label,task_type)]
+msr_tbl[1:5,.(key,packages,predict_type,task_properties)]
+#留出法
+resampling=rsmp("holdout")
+rr=resample(task,learner,resampling)
+rr$aggregate(msr("classif.acc"))
+#benchmark
+lrns=c(learner,lrn("classif.featureless"))
+d=benchmark_grid(task,lrns,resampling)
+bmr=benchmark(design=d)
+acc=bmr$aggregate(msr("classif.acc"))
+acc[,.(task_id,learner_id,classif.acc)]
+
+#查看所有重抽样方法
+as.data.table(mlr_resamplings)
+#构建重抽样
+resampling=rsmp("holdout")
+#改变留出法的比例
+resampling=rsmp("holdout",ratio=0.8)
+resampling$param_set$values=list(ratio=0.5)
