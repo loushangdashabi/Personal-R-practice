@@ -384,3 +384,4 @@ str(resampling$test_set(1))
 custom_cv=rsmp("custom_cv")
 folds=as.factor(rep(1:4,each=task$nrow/4))
 custom_cv$instantiate(task,f=folds)
+#-------#
