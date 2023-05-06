@@ -356,3 +356,31 @@ print(rr)
 as.data.table(rr)
 acc=rr$score(msr("classif.acc"))
 acc[,.(iteration,classif.acc)]
+rr$aggregate(msr("classif.acc"))#默认为macro宏平均
+rr$aggregate(msr("classif.acc",average="micro"))#微平均
+
+#检查重抽样结果
+rrdt=as.data.table(rr)
+rrdt$prediction
+all.equal(rrdt$prediction,rr$predictions())#两者结果一致
+pred=rr$prediction()
+pred$score(msr("classif.acc"))
+
+#保存每次迭代的模型
+rr=resample(task,learner,resampling,store_models=T)
+rr$learners[[1]]$model
+#查看每个变量的重要性在各次迭代中有无区别
+lapply(rr$learners,function(x) x$model$variable.importance)
+map(rr$learners,~.$model$variable.importance)
+
+#自定义重抽样
+resampling=rsmp("custom")
+resampling$instantiate(task,
+                       train=list(c(1:50,151:333)),
+                       test=list(51:150))
+str(resampling$train_set(1))
+str(resampling$test_set(1))
+
+custom_cv=rsmp("custom_cv")
+folds=as.factor(rep(1:4,each=task$nrow/4))
+custom_cv$instantiate(task,f=folds)
