@@ -427,3 +427,57 @@ resampling=rsmp("bootstrap")
 rr=resample(task,learner,resampling)
 autoplot(rr,measure=msr("classif.acc"),type="boxplot")
 autoplot(rr,measure=msr("classif.acc"),type="histogram")
+
+task$select(c("bill_length","flipper_length"))
+resampling=rsmp("cv",folds=4)
+rr=resample(task,learner,resampling,store_models=T)
+autoplot(rr,type="prediction")#只有两个特征,可绘制二维预测曲面
+
+#benchmarking
+#构建benchmark
+tsks=tsks(c("german_credit","sonar","breast_cancer"))
+lrns=lrns(c("classif.ranger","classif.rpart","classif.featureless"),predict_type="prob")
+rsmp=rsmp("cv",folds=5)
+design=benchmark_grid(tsks,lrns,rsmp)
+mlr3misc::ids(design$task)
+design[mlr3misc::ids(task)=="sonar",]
+bmr=benchmark(design)#运行benchmark
+acc=bmr$aggregate(msr("classif.acc"))
+acc[,.(task_id,learner_id,classif.acc)]#每个learner,每个task的acc
+acc[,list(mean_accuracy=mean(classif.acc)),by="learner_id"]#每个learner的平均acc
+#利用mlr3benchmark包排序
+library(mlr3benchmark)
+bma=as_benchmark_aggr(bmr,measures=msr("classif.acc"))
+bma$rank_data(minimize=F)
+
+#查看benchmark对象
+bmrdt=as.data.table(bmr)
+names(bmrdt)
+#排序好的benchmark可以用索引读取
+rr1=bmr$resample_result(1)
+rr2=bmr$resample_result(2)
+#可视化
+autoplot(bmr,measure=msr("classif.acc"))
+
+#统计检验(Friedman-Nemenyi test)
+bma=as_benchmark_aggr(bmr,measures=msr("classif.acc"))
+bma$friedman_posthoc()
+autoplot(bma,type="cd")
+
+#ROC分析
+task=tsk("german_credit")
+learner=lrn("classif.ranger",predict_type="prob")
+splits=partition(task,ratio=0.8)
+learner$train(task,splits$train)
+pred=learner$predict(task,splits$test)
+pred$confusion
+mlr3measures::confusion_matrix(truth=pred$truth,
+                               response=pred$response,positive=task$positive)
+#改变阈值,阈值越高,真阳性率越高,但假阴性率也越高
+pred$set_threshold(0.99)
+mlr3measures::confusion_matrix(truth=pred$truth,
+                               response=pred$response,positive=task$positive)
+pred$set_threshold(0.01)
+mlr3measures::confusion_matrix(truth=pred$truth,
+                               response=pred$response,positive=task$positive)
+#绘制ROC曲线
