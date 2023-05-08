@@ -480,4 +480,44 @@ mlr3measures::confusion_matrix(truth=pred$truth,
 pred$set_threshold(0.01)
 mlr3measures::confusion_matrix(truth=pred$truth,
                                response=pred$response,positive=task$positive)
-#绘制ROC曲线///
+#绘制ROC曲线
+thresholds=sort(pred$prob[,1])
+rocvals=data.table::rbindlist(lapply(thresholds,function(t){
+  pred$set_threshold(t)
+  data.frame(
+    threshold=t,
+    FPR=pred$score(msr("classif.fpr")),
+    TPR=pred$score(msr("classif.tpr"))
+  )
+}))
+#手动画
+ggplot(rocvals,aes(FPR,TPR))+
+  geom_point()+
+  geom_path(color="darkred")+
+  geom_abline(linetype="dashed")+
+  coord_fixed(xlim=c(0,1),ylim=c(0,1))+
+  labs(
+    title="Manually constructed ROC curve",
+    x="1-Specificity (FPR)",
+    y="Sensitivity (TPR)"
+  )+
+  theme_bw()
+#自动画
+autoplot(pred,type="roc")
+autoplot(pred,type="prc")#对于不均衡的数据,prc好于roc
+autoplot(pred,type="threshold",measure=msr("classif.fpr"))
+autoplot(pred,type="threshold",measure=msr("classif.acc"))
+#重抽样后可视化ROC
+rr=resample(tsk("german_credit"),lrn("classif.ranger",predict_type="prob"),
+            rsmp("cv",folds=5))
+autoplot(rr,type="roc")
+autoplot(rr,type="prc")
+#benchmark可视化ROC
+design=benchmark_grid(
+  tsk("german_credit"),
+  lrns(c("classif.rpart","classif.ranger","classif.kknn","classif.featureless"),predict_type="prob"),
+  resamplings=rsmp("bootstrap")
+)
+bmr=benchmark(design)
+autoplot(bmr,type="roc")
+autoplot(bmr,type="prc")
