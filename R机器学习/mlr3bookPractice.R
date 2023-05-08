@@ -521,3 +521,15 @@ design=benchmark_grid(
 bmr=benchmark(design)
 autoplot(bmr,type="roc")
 autoplot(bmr,type="prc")
+
+#exercise
+task=tsk("spam")
+learners=lrns(c("classif.ranger","classif.log_reg","classif.xgboost"),predict_type="prob")
+resampling=rsmp("cv",folds=5)
+design=benchmark_grid(task,learners,resampling)
+bmr=benchmark(design)
+bmr$aggregate(msr("classif.acc"))
+autoplot(bmr,type="roc")
+autoplot(bmr,type="prc")
+
+task=tsk("penguins_simple")
