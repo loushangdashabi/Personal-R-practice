@@ -532,4 +532,169 @@ bmr$aggregate(msr("classif.acc"))
 autoplot(bmr,type="roc")
 autoplot(bmr,type="prc")
 
-task=tsk("penguins_simple")
+#超参数优化
+learner=lrn("classif.svm",type="C-classification",kernel="radial")
+as.data.table(learner$param_set)[,.(id,class,upper,lower,nlevels)]
+learner=lrn("classif.svm",
+            cost=to_tune(1e-1,1e5),
+            gamma=to_tune(1e-1,1),#给出参数范围,自动寻找
+            type="C-classification",
+            kernel="radial")
+#使用ti()手动调参
+learner=lrn("classif.svm",
+            cost=to_tune(1e-1,1e5),
+            gamma=to_tune(1e-1,1e5),
+            type="C-classification",
+            kernel="radial")
+instance=ti(
+  task=tsk("sonar"),
+  learner=learner,
+  resampling=rsmp("cv",folds=3),
+  measures=msr("classif.ce"),
+  terminator=trm("none")
+)
+
+#查看支持的参数类型
+tnr("random_search")$param_classes
+#查看支持的特性
+tnr("random_search")$properties
+
+#example
+tuner=tnr("grid_search",resolution=5,batch_size=10)
+tuner$param_set#tuner也有超参数,但通常不需要修改
+tuner$optimize(instance)
+instance$result#调参结果存储在此
+
+#对数表换,若超参数的范围是极度左偏态的
+learner=lrn("classif.svm",
+            cost=to_tune(1e-1,1e5,logscale=T),
+            gamma=to_tune(1e-1,1e5,logscale=T),
+            type="C-classification",
+            kernel="radial")
+instance=ti(
+  task=tsk("sonar"),
+  learner=learner,
+  resampling=rsmp("cv",folds=3),
+  measures=msr("classif.ce"),
+  terminator=trm("none"))
+tuner$optimize(instance)
+instance$result$x_domain#对数变换前的超参数
+
+#tune()快捷调参
+learner=lrn("classif.svm",
+            cost=to_tune(1e-1,1e5,logscale=T),
+            gamma=to_tune(1e-1,1e5,logscale=T),
+            type="C-classification",
+            kernel="radial")
+instance=tune(
+  tuner=tnr("grid_search",resolution=5,batch_size=5),
+  task=tsk("sonar"),
+  learner=learner,
+  resampling=rsmp("cv",folds=3),
+  measures=msr("classif.ce")
+)
+instance$result
+
+#分析结果
+as.data.table(instance$archive)[,.(cost,gamma,classif.ce)]
+as.data.table(instance$archive)[,.(timestamp, runtime_learners, errors, warnings)]
+as.data.table(instance$archive,measures=msrs(c("classif.fpr","classif.fnr")))[,.(cost,gamma,classif.ce,classif.fpr,classif.fnr)]#增加新的measure
+instance$archive$benchmark_result
+autoplot(instance,type="surface")#网格搜索对每个参数只尝试了5次,因此并不是最好的方法
+
+#使用调参完的模型
+svm_tuned=lrn("classif.svm")
+svm_tuned$param_set$values=instance$result_learner_param_vals
+svm_tuned$train(tsk("sonar"))
+svm_tuned$model
+
+#自动调参AutoTuner
+learner = lrn("classif.svm",
+              cost  = to_tune(1e-5, 1e5, logscale = TRUE),
+              gamma = to_tune(1e-5, 1e5, logscale = TRUE),
+              kernel = "radial",
+              type = "C-classification"
+)
+at=auto_tuner(
+  tuner=tnr("grid_search",resolution=5,batch_size=5),
+  learner=learner,
+  resampling=rsmp("cv",folds=3),
+  measure=msr("classif.ce")
+)#auto_tuner对象可以像其他learner一样直接使用
+task=tsk("sonar")
+splits=partition(task)
+at$train(task,row_ids=splits$train)
+at$predict(task,row_ids=splits$test)$score()
+
+at$tuning_instance#可以像其他instance一样分析
+
+
+#嵌套重抽样,**不能用来选择最佳超参数,用于估计模型性能
+#使用AutoTuner进行嵌套重抽样
+learner = lrn("classif.svm",
+              cost  = to_tune(1e-5, 1e5, logscale = TRUE),
+              gamma = to_tune(1e-5, 1e5, logscale = TRUE),
+              kernel = "radial",
+              type = "C-classification")
+at=auto_tuner(
+  tuner=tnr("grid_search",resolution=5,batch_size=5),
+  learner=learner,
+  resampling=rsmp("cv",folds=4),
+  measure=msr("classif.ce"))
+task=tsk("sonar")
+outer_resampling=rsmp("cv",folds=3)
+rr=resample(task,at,outer_resampling,store_models=T)
+extract_inner_tuning_results(rr)[,.(iteration,cost,gamma,classif.ce)]
+extract_inner_tuning_archives(rr)[,.(iteration,cost,gamma,classif.ce)]
+
+#性能比较
+extract_inner_tuning_results(rr)[,.(iteration,cost,gamma,classif.ce)]
+rr$score()[,.(iteration,classif.ce)]#outer resampling的预测性能显著降低,说明优化的超参数使得模型过拟合
+rr$aggregate()#必须报告总体性能,此为无偏估计
+
+
+#example
+learner=lrn("classif.xgboost",
+            eta=to_tune(1e-4,1,logscale=T),
+            nrounds=to_tune(1,5000),
+            max_depth=to_tune(1,20),
+            colsample_bytree=to_tune(1e-1,1),
+            colsample_bylevel=to_tune(1e-1,1),
+            lambda=to_tune(1e-3,1e3,logscale=T),
+            alpha=to_tune(1e-3,1e3,logscale=T),
+            subsample=to_tune(1e-1,1))
+generator=tgen("moons")
+task=generator$generate(n=100L)
+instance=tune(
+  tuner=tnr("random_search",batch_size=10),
+  task=task,
+  learner=learner,
+  resampling=rsmp("holdout"),
+  measures=msr("classif.ce"),
+  terminator=trm("evals",n_evals=1000))
+instance$result_y
+
+tuned_learner=lrn("classif.xgboost")
+tuned_learner$param_set$set_values(
+  .values=instance$result_learner_param_vals)
+tuned_learner$train(task)
+pred=tuned_learner$predict(generator$generate(n=1000000))
+pred$score()
+
+at=auto_tuner(
+  tuner=tnr("random_search",batch_size=10),
+  learner=learner,
+  resampling=rsmp("holdout"),
+  measure=msr("classif.ce"),
+  terminator=trm("evals",n_evals=1000))
+rr=resample(task,at,rsmp("cv",folds=5))
+rr$aggregate()
+
+rr=tune_nested(
+  tuner=tnr("random_search",batch_size=10),
+  task=task,
+  learner=learner,
+  outer_resampling=rsmp("cv",folds=5),
+  inner_resampling=rsmp("holdout"),
+  measure=msr("classif.ce"),
+  terminator=trm("evals",n_evals=1000))
