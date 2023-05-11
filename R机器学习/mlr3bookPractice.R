@@ -776,3 +776,18 @@ search_space=ps(
 search_space=ps(
   cost=p_fct(c("0.1","0.3","10"),trafo=function(x)list(`0.1`=0.1,`3`=3,`10`=10)[[x]]),
   kernel=p_fct(c("polynomial","radial")))
+
+#字符类型
+search_space=ps(
+  cost=p_fct(c(0.1,3,10)),
+  kernel=p_fct(c("polynomial","radial")))
+typeof(search_space$params$cost$levels)
+
+
+#2.从learner创建搜索空间
+learner=lrn("classif.svm",
+            kernel=to_tune(c("linear","polynomial")),
+            gamma=to_tune(p_dbl(1e-4,1e4,depends=kernel=="ploynomial")))
+#设置变换也是类似的
+learner=lrn("classif.svm",
+            cost=to_tune(p_dbl(-1,1,trafo=function(x)exp(x))))
