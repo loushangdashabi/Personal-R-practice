@@ -698,3 +698,81 @@ rr=tune_nested(
   inner_resampling=rsmp("holdout"),
   measure=msr("classif.ce"),
   terminator=trm("evals",n_evals=1000))
+
+#Advanced Tuning
+#Encapsulation and Fallback Learner(模型不能拟合时)
+task=tsk("sonar")
+task$filter(seq(10))
+learner=lrn("classif.svm",
+            cost=to_tune(1e-5,1e5),
+            gamma=to_tune(1e-5,1e5),
+            kernel="radial",
+            type="C-classification")
+#封装以忽略错误,evaluate捕获错误并继续运行,callr则创建一个单独的进程
+learner$encapsulate=c(train="evaluate",predict="evaluate")
+learner$timeout=c(train=30,predict=30)#设置时延
+#回退
+learner$fallback=lrn("classif.featureless")#后备学习器,原学习器无法拟合时用于评价模型
+instance=tune(
+  tuner=tnr("random_search",batch_size=5),
+  task=task,
+  learner=learner,
+  resampling=rsmp("holdout"),
+  measures=msr("classif.ce"),
+  term_evals=10)
+as.data.table(instance$archive)[,.(cost,gamma,classif.ce,errors,warnings)]
+
+#内存管理
+store_models=F#在ti()或auto_tuner()中禁用,启用时会同时启用下面两个
+store_benchmark_results=F#在ti()或auto_tuner()中禁用,启用时会同时启用下面这个
+store_tuning_instance=F#在auto_tuner()中禁用
+
+#定义搜索空间
+#1.从头开始定义搜索空间
+learner=lrn("classif.svm",
+            cost=to_tune(1e-5,1e5),
+            gamma=to_tune(1e-5,1),
+            kernel="radial",
+            type="C-classification")
+learner$param_set$search_space()
+
+search_space=ps(
+  cost=p_dbl(lower=1e-1,upper=1e5),
+  gamma=p_dbl(lower=1e-1,upper=1))
+#查看超参数是否有界
+ps(cost=p_dbl(lower=0.1,upper=1))$is_bounded
+ps(cost=p_dbl(lower=0.1,upper=Inf))$is_bounded
+
+#指定参数间的依赖关系
+search_space=ps(
+  cost=p_dbl(0,1),
+  kernel=p_fct(c("polynomial","radial")),
+  degree=p_int(1,3,depends=(kernel=="polynomial")))
+#变换
+search_space=ps(
+  cost=p_dbl(-1,1,trafo=function(x)exp(x)),
+  kernel=p_fct(c("polynomial","radial")))
+#增加复杂变换
+search_space=ps(
+  cost=p_dbl(-1,1,trafo=function(x)exp(x)),
+  kernel=p_fct(c("polynomial","radial")),
+  .extra_trafo=function(x,param_set){
+    if(x$kernel=="polynomial"){
+      x$cost=x$cost+2
+    }
+    x
+  }
+)
+
+#有些超参数不属于这些类型,用p_uty标记,需要进行变换
+search_space=ps(
+  class.weight=p_dbl(lower=0.1,upper=0.9,
+                     trafo=function(x)c(M=x,R=1-x)))
+#p_fct,因子类型超参数
+search_space=ps(
+  cost=p_fct(c(0.1,3,10)),
+  kernel=p_fct(c("polynomial","radial")))
+#与以下表述等同
+search_space=ps(
+  cost=p_fct(c("0.1","0.3","10"),trafo=function(x)list(`0.1`=0.1,`3`=3,`10`=10)[[x]]),
+  kernel=p_fct(c("polynomial","radial")))
