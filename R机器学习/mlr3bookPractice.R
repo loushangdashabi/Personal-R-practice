@@ -791,3 +791,41 @@ learner=lrn("classif.svm",
 #设置变换也是类似的
 learner=lrn("classif.svm",
             cost=to_tune(p_dbl(-1,1,trafo=function(x)exp(x))))
+par=ps(
+  M=p_dbl(0.1,0.9),
+  R=p_dbl(0.1,0.9),
+  .extra_trafo=function(x,param_set)list(c(M=x$M,R=x$R)))
+learner$param_set$set_values(class.weights=to_tune(par))
+learner$param_set$search_space()
+
+#推荐的搜索空间
+#查看所有tuning方法
+as.data.table(mlr_tuning_spaces)
+lts("classif.svm.default")
+#可以传入ti或tune中
+instance=ti(
+  task=tsk("sonar"),
+  learner=lrn("classif.rpart"),
+  resampling=rsmp("cv",folds=3),
+  measures=msr("classif.ce"),
+  terminator=trm("evals",n_evals=20),
+  search_space=lts("classif.rpart.rbv2"))
+
+instance=tune(
+  tuner=tnr("grid_search",resolution=5,batch_size=5),
+  task=tsk("sonar"),
+  learner=lrn("classif.rpart"),
+  resampling=rsmp("cv",folds=3),
+  measures=msr("classif.ce"),
+  terminator=trm("evals",n_evals=20),
+  search_space=lts("classif.rpart.rbv2"))
+instance$result
+#也可以用于AutoTuner
+at=auto_tuner(
+  tuner=tnr("grid_search",resolution=5,batch_size=5),
+  learner=lrn("classif.rpart"),
+  resampling=rsmp("cv",folds=3),
+  measure=msr("classif.ce"),
+  terminator=trm("evals",n_evals=20),
+  search_space=lts("classif.rpart.rbv2"))
+at$train(tsk("sonar"))
