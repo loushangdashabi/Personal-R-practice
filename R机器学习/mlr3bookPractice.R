@@ -829,3 +829,85 @@ at=auto_tuner(
   terminator=trm("evals",n_evals=20),
   search_space=lts("classif.rpart.rbv2"))
 at$train(tsk("sonar"))
+
+#将search space应用于learner
+vals=lts("classif.rpart.default")$values
+learner=lrn("classif.rpart")
+learner$param_set$set_values(.values=vals)
+
+#将学习器传给lts()时采用默认ps
+lts(lrn("classif.ranger"))
+#修改lts()中的调优空间
+lts("classif.rpart.rbv2",maxdepth=to_tune(1,20))
+
+
+#多保真度调参(Hyperband)
+#hyperband tuner
+#example xgboost
+library(mlr3hyperband)
+learner=lrn("classif.xgboost")
+learner$param_set$set_values(
+  nrounds=to_tune(p_int(16,128,tags="budget")),
+  eta=to_tune(1e-4,1,logscale=T),
+  max_depth=to_tune(1,20),
+  colsample_bytree=to_tune(1e-1,1),
+  colsample_bylevel=to_tune(1e-1,1),
+  lambda=to_tune(1e-3,1e3,logscale=T),
+  alpha=to_tune(1e-3,1e3,logscale=T),
+  subsample=to_tune(1e-1,1))
+instance=ti(
+  task=tsk("spam"),
+  learner=learner,
+  resampling=rsmp("holdout"),
+  measures=msr("classif.ce"),
+  terminator=trm("none"))#不设置终止器,因为hyperband会自动终止
+tuner=tnr("hyperband",eta=2,repetitions=1)
+hyperband_schedule(r_max=16,r_min=128,eta=2)#查看时间表,不修改tuner
+tuner$optimize(instance)
+instance$result[,.(classif.ce,nrounds)]
+as.data.table(instance$archive)[,.(bracket,stage,classif.ce,eta,max_depth,colsample_bytree)]
+
+#example svm
+learner=lrn("classif.svm",id="svm",type="C-classification")
+graph_learner=as_learner(po("subsample") %>>%learner)
+as.data.table(graph_learner$param_set)[,.(id,lower,upper,levels)]
+
+graph_learner$param_set$set_values(
+  subsample.frac=to_tune(p_dbl(3^-3,1,tags="budget")),
+  svm.kernel=to_tune(c("linear","polynomial","radial")),
+  svm.cost=to_tune(1e-4,1e3,logscale=T),
+  svm.gamma=to_tune(1e-4,1e3,logscale=T),
+  svm.tolerance=to_tune(1e-4,2,logscale=T),
+  svm.degree=to_tune(2,5))
+
+#防止时间过长或崩溃
+graph_learner$encapsulate=c(train="evaluate",predict="evaluate")
+graph_learner$timeout=c(train=30,predict=30)
+graph_learner$fallback=lrn("classif.featureless")
+
+instance=ti(
+  task=tsk("sonar"),
+  learner=graph_learner,
+  resampling=rsmp("cv",folds=3),
+  measures=msr("classif.ce"),
+  terminator=trm("none"))
+tuner=tnr("hyperband",eta=3)
+tuner$optimize(instance)
+instance$result[,.(classif.ce,subsample.frac,svm.kernel)]
+
+#多目标优化(多个指标相互冲突)(高性能、高解释性)
+learner=lrn("classif.rpart",
+            cp=to_tune(1e-04,1e-1),
+            minsplit=to_tune(2,64),
+            maxdepth=to_tune(1,30))
+measures=msrs(c("classif.ce","selected_features"))#筛选特征,达到帕累托最优
+instance=ti(
+  task=tsk("sonar"),
+  learner=learner,
+  resampling=rsmp("cv",folds=5),
+  measures=measures,
+  terminator=trm("evals",n_evals=30),
+  store_models=T)
+tuner=tnr("random_search",batch_size=30)
+tuner$optimize(instance)
+instance$archive$best()[,.(cp,minsplit,maxdepth,classif.ce,selected_features)]
