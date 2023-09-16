@@ -7,6 +7,6 @@
 
 R for data science: https://r4ds.had.co.nz/
 
-tidymodels with R: https://www.tmwr.org/software-modeling
+tidymodels with R: https://www.tmwr.org/
 
 Tidy design principles: https://design.tidyverse.org/
