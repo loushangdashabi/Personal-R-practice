@@ -5,6 +5,6 @@
 
 王敏杰tidyverse教程：https://bookdown.org/wangminjie/R4DS/
 
-R for data science: [https://r4ds.had.co.nz/****](https://r4ds.had.co.nz/)
+R for data science: https://r4ds.had.co.nz/
 
 tidymodels with R: https://www.tmwr.org/software-modeling
