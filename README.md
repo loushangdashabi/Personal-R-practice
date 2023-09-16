@@ -4,3 +4,7 @@
 北大李东风老师的R教程：https://www.math.pku.edu.cn/teachers/lidf/docs/Rbook/html/_Rbook/index.html
 
 王敏杰tidyverse教程：https://bookdown.org/wangminjie/R4DS/
+
+R for data science: [https://r4ds.had.co.nz/****](https://r4ds.had.co.nz/)
+
+tidymodels with R: https://www.tmwr.org/software-modeling
