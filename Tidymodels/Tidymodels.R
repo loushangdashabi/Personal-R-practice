@@ -109,3 +109,62 @@ tidy(lm_form_fit)
 
 #做出预测
 predict(lm_form_fit,new_data = ames_test)
+
+ames_test %>% 
+  select(Sale_Price) %>% 
+  bind_cols(predict(lm_form_fit,new_data = ames_test)) %>% 
+  bind_cols(predict(lm_form_fit,new_data = ames_test,type="pred_int"))
+
+#parsnip包的统一接口
+tree_model=
+  decision_tree(min_n=2) %>% 
+  set_engine("rpart") %>% 
+  set_mode("regression")
+tree_fit=
+  tree_model %>% 
+  fit(Sale_Price~Longitude+Latitude,data=ames_train)
+ames_test %>% 
+  select(Sale_Price) %>% 
+  bind_cols(predict(tree_fit,ames_test))
+
+#workflow
+lm_model =
+  linear_reg() %>% 
+  set_engine("lm")
+lm_wfolw=
+  workflow() %>% 
+  add_model(lm_model)#创建workflow,model必须是parsnip model
+
+#模型简单时可以用标准formula作为预处理器
+lm_wfolw =
+  lm_wfolw %>% 
+  add_formula(Sale_Price~Longitude+Latitude)
+
+#fit()来拟合模型
+lm_fit=fit(lm_wfolw,ames_train)
+
+#predict()预测结果
+ames_test %>% 
+  select(Sale_Price) %>% 
+  bind_cols(predict(lm_fit,ames_test))
+
+#workflow中的模型和预处理器都可以删除或更新
+lm_fit %>% 
+  update_formula(Sale_Price~Latitude)#拟合结果会被删除,因为formula不一致
+
+#添加原始变量(类似于dplyr的操作)
+lm_wfolw=
+  lm_wfolw %>% 
+  remove_formula() %>% 
+  add_variables(outcome = Sale_Price,predictors = c(Longitude,Latitude))
+
+#支持tidyselect
+lm_wfolw=
+  lm_wfolw %>% 
+  remove_variables() %>% 
+  add_variables(outcome = Sale_Price,predictors = c(ends_with("tude")))
+#选择所有特征
+lm_wfolw=
+  lm_wfolw %>% 
+  remove_variables() %>% 
+  add_variables(outcome = Sale_Price,predictors = everything())
