@@ -131,17 +131,17 @@ ames_test %>%
 lm_model =
   linear_reg() %>% 
   set_engine("lm")
-lm_wfolw=
+lm_wflow=
   workflow() %>% 
   add_model(lm_model)#创建workflow,model必须是parsnip model
 
 #模型简单时可以用标准formula作为预处理器
-lm_wfolw =
-  lm_wfolw %>% 
+lm_wflow =
+  lm_wflow %>% 
   add_formula(Sale_Price~Longitude+Latitude)
 
 #fit()来拟合模型
-lm_fit=fit(lm_wfolw,ames_train)
+lm_fit=fit(lm_wflow,ames_train)
 
 #predict()预测结果
 ames_test %>% 
@@ -153,18 +153,119 @@ lm_fit %>%
   update_formula(Sale_Price~Latitude)#拟合结果会被删除,因为formula不一致
 
 #添加原始变量(类似于dplyr的操作)
-lm_wfolw=
-  lm_wfolw %>% 
+lm_wflow=
+  lm_wflow %>% 
   remove_formula() %>% 
   add_variables(outcome = Sale_Price,predictors = c(Longitude,Latitude))
 
 #支持tidyselect
-lm_wfolw=
-  lm_wfolw %>% 
+lm_wflow=
+  lm_wflow %>% 
   remove_variables() %>% 
   add_variables(outcome = Sale_Price,predictors = c(ends_with("tude")))
 #选择所有特征
-lm_wfolw=
-  lm_wfolw %>% 
+lm_wflow=
+  lm_wflow %>% 
   remove_variables() %>% 
   add_variables(outcome = Sale_Price,predictors = everything())
+
+fit(lm_wflow,ames_train)
+
+#特殊包的formula(如lme4的随机效应模型)
+library(lme4)
+data(Orthodont,package="nlme")
+lmer(distance~Sex+(age|Subject),data=Orthodont)
+model.matrix(distance ~ Sex + (age | Subject), data = Orthodont)#标准formula无法处理age|Subject
+
+#workfolw可以同时接受variable和formula
+library(multilevelmod)
+multilevel_spec=
+  linear_reg() %>% set_engine("lmer")
+multievel_wflow=
+  workflow() %>% 
+  add_variables(outcomes=distance,predictors=c(Sex,age,Subject)) %>% 
+  add_model(multilevel_spec,
+            formula = distance ~ Sex + (age | Subject))#将formula作为model的一部分传入,而非add_formula
+multilevel_fit=fit(multievel_wflow,Orthodont)
+
+#也可以做生存分析
+library(censored)
+paramtric_spec =survival_reg()
+paramtric_wflow=
+  workflow() %>% 
+  add_variables(outcomes = c(fustat,futime),predictors = c(age,rx)) %>% 
+  add_model(paramtric_spec,
+            formula = Surv(futime,fustat)~age+strata(rx))
+paramtric_fit=fit(paramtric_wflow,ovarian)
+paramtric_fit %>% tidy()
+
+#一次创建多个工作流
+location=list(
+  longitude=Sale_Price~Longitude,
+  latitude=Sale_Price~Latitude,
+  coords=Sale_Price~Longitude+Latitude,
+  neiborhood=Sale_Price~Neighborhood
+)
+library(workflowsets)
+location_models=workflow_set(preproc=location,models=list(lm=lm_model))#可以多个formula和多个model交叉
+extract_workflow(location_models,id="longitude_lm")#提取其中一个workflow 
+location_models=
+  location_models %>% 
+  mutate(fit=map(info,~fit(.x$workflow[[1]],ames_train)))
+
+#评估测试集
+final_lm_res=last_fit(lm_wflow,ames_split)#注意用split对象,initial_split()
+fitted_lm_wflow=extract_workflow(final_lm_res)#可以从结果中取用workflow
+collect_metrics(final_lm_res)#提取性能指标
+x=collect_predictions(final_lm_res)
+
+
+#特征工程recipe包
+lm(Sale_Price~Neighborhood+log10(Gr_Liv_Area)+Year_Built+Bldg_Type,data=ames)
+#recipe包做类似的事,但不立即执行
+simple_ames=
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type,
+         data = ames_train) %>% 
+  step_log(Gr_Liv_Area,base=10) %>% #通过step_*()来操作数据
+  step_dummy(all_nominal_predictors())#将所有分类数据转化为虚拟变量
+
+#recipe对象可以添加到workflow中
+lm_wflow %>% 
+  add_recipe(simple_ames)
+#要求workflow中尚无预处理器,若有则需要先删除
+lm_wflow =
+  lm_wflow %>% 
+  remove_variables() %>% 
+  add_recipe(simple_ames)
+lm_fit=fit(lm_wflow,ames_train)
+predict(lm_fit,ames_test)
+#拟合后获取recipe或model
+lm_fit %>% 
+  extract_recipe()
+lm_fit %>% 
+  extract_fit_parsnip() %>% #返回parsnip对象,即model
+  tidy()
+
+#recipe能实现的功能
+#1.用数字格式编码定性数据
+simple_ames=
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type,
+         data=ames_train) %>% 
+  step_log(Gr_Liv_Area,base=10) %>% 
+  step_other(Neiborghood,threshold = 0.01) %>% #将Neiborghood中排序最后1%的类别合并为other
+  step_dummy(all_nominal_predictors())#将因子的第一个水平值作为ref
+#2.交互项
+ggplot(ames_train,aes(x=Gr_Liv_Area,y=10^Sale_Price))+
+  geom_point(alpha=0.2)+
+  facet_wrap(~Bldg_Type)+
+  geom_smooth(method=lm,formula=y~x,se=F,color="lightblue")+
+  scale_x_log10()+
+  scale_y_log10()+
+  labs(x="Gross Living Area",y="Sale Price (USD)")#x,y的关系与Bldg_type相关(交互项)
+simple_ames=
+  recipe(Sale_Price~Neighborhood+Gr_Liv_Area+Year_Built+Bldg_Type,
+         data=ames_train) %>% 
+  step_log(Gr_Liv_Area,base=10) %>% 
+  step_other(Neighborhood,threshold=0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(~Gr_Liv_Area:starts_with("Bldg_Type_"))
