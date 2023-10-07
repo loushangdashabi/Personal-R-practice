@@ -10,3 +10,5 @@ R for data science: https://r4ds.had.co.nz/
 Tidymodels with R: https://www.tmwr.org/
 
 Tidy design principles: https://design.tidyverse.org/
+
+jiebaR中文分词: http://qinwenfeng.com/jiebaR/
