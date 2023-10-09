@@ -363,3 +363,64 @@ tidy(estimated_recipe,number=2)#知道是第几步也可以直接选取
 #Column Roles,给那些非特征或结局的列设置Role
 ames_rec %>% 
   update_role(address,new_role="street address")
+
+#判断模型有效性
+
+#回归指标
+ames_test_res=
+  predict(lm_fit,new_data = ames_test %>% select(-Sale_Price))#预测
+ames_test_res=
+  bind_cols(ames_test_res,ames_test %>% select(Sale_Price))#加上真实值
+#绘制结果
+ggplot(ames_test_res,aes(Sale_Price,.pred))+
+  geom_abline(lty=1)+
+  geom_point(alpha=0.5)+
+  labs(y = "Predicted Sale Price (log10)", x = "Sale Price (log10)")+
+  coord_obs_pred()
+
+#计算均方根误差
+rmse(ames_test_res,truth=Sale_Price,estimate = .pred)
+
+#一次需要计算多个指标时，可以创建指标集
+ames_metrics=metric_set(rmse,rsq,mae)
+ames_metrics(ames_test_res,truth=Sale_Price,estimate = .pred)
+
+
+#二元分类指标
+data(two_class_example)
+tibble(two_class_example)
+conf_mat(two_class_example,truth=truth,estimate=predicted)#混淆矩阵
+accuracy(two_class_example,truth,predicted)#准确率
+mcc(two_class_example,truth,predicted)#马修斯相关系数
+f_meas(two_class_example,truth,predicted)#F1值
+#合并写
+classification_metrics <- metric_set(accuracy, mcc, f_meas)
+classification_metrics(two_class_example, truth = truth, estimate = predicted)
+#这些函数默认第一个水平是关注的事件
+#但有些函数仍然将第二水平（0/1）作为关注的事件
+f_meas(two_class_example,truth,predicted,event_level="second")#设置为第二水平的示例
+
+two_class_curve=roc_curve(two_class_example,truth,Class1)#ROC曲线
+roc_auc(two_class_example,truth,Class1)#曲线下面积
+autoplot(two_class_curve)#可视化
+
+#多分类指标
+data(hpc_cv)
+tibble(hpc_cv)
+accuracy(hpc_cv,obs,pred)
+mcc(hpc_cv,obs,pred)
+#二分类方法扩展到多分类
+sensitivity(hpc_cv, obs, pred, estimator = "macro")#宏平均,分为多个二分类两两比较后平均
+sensitivity(hpc_cv, obs, pred, estimator = "macro_weighted")#加权宏平均,同上,但按照样本量加权
+sensitivity(hpc_cv, obs, pred, estimator = "micro")#微平均,所有正例/总体
+roc_auc(hpc_cv, obs, VF, F, M, L)#必须将所有预测指标都纳入
+roc_auc(hpc_cv, obs, VF, F, M, L, estimator = "macro_weighted")#也可以用平均方法
+
+#所有性能指标都可以分组汇总（例如按每次重抽样分组）
+hpc_cv %>% 
+  group_by(Resample) %>% 
+  accuracy(obs, pred)
+hpc_cv %>% 
+  group_by(Resample) %>% 
+  roc_curve(obs, VF, F, M, L) %>% 
+  autoplot()#画图也支持分类
