@@ -217,7 +217,7 @@ location_models=
 final_lm_res=last_fit(lm_wflow,ames_split)#注意用split对象,initial_split()
 fitted_lm_wflow=extract_workflow(final_lm_res)#可以从结果中取用workflow
 collect_metrics(final_lm_res)#提取性能指标
-x=collect_predictions(final_lm_res)
+collect_predictions(final_lm_res)
 
 
 #特征工程recipe包
@@ -268,4 +268,98 @@ simple_ames=
   step_log(Gr_Liv_Area,base=10) %>% 
   step_other(Neighborhood,threshold=0.01) %>% 
   step_dummy(all_nominal_predictors()) %>% 
+  #必须先创建好虚拟变量再做交互,否则baseR会先生成虚拟变量,可能产生意想不到的错误
   step_interact(~Gr_Liv_Area:starts_with("Bldg_Type_"))
+
+#样条函数
+library(patchwork)
+library(splines)
+plot_smoother=function(deg_free){
+  ggplot(ames_train,aes(Latitude,10^Sale_Price))+
+    geom_point(alpha=.2)+
+    scale_y_log10()+
+    geom_smooth(
+      method="lm",
+      formula=y~ns(x,df=deg_free),
+      color="lightblue",
+      se=TRUE
+    )+
+    labs(title = paste(deg_free, "Spline Terms"),
+         y = "Sale Price (USD)")
+}
+(plot_smoother(2)+plot_smoother(5))/(plot_smoother(20)+plot_smoother(100))
+
+#recipe实现自然样条
+recipe(Sale_Price~Neighborhood+Gr_Liv_Area+Year_Built+Bldg_Type+Latitude,
+       data=ames_train) %>% 
+  step_log(Gr_Liv_Area,base=10) %>% 
+  step_other(Neighborhood,threshold=0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(~Gr_Liv_Area:starts_with("Bldg_Type_")) %>% 
+  step_ns(Latitude,deg_free=20)#增加一定的非线性，有助于优化
+
+
+#特征提取
+recipe(Sale_Price~Neighborhood+Gr_Liv_Area+Year_Built+Bldg_Type+Latitude,
+       data=ames_train) %>% 
+  step_log(Gr_Liv_Area,base=10) %>% 
+  step_other(Neighborhood,threshold=0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(~Gr_Liv_Area:starts_with("Bldg_Type_")) %>% 
+  step_ns(Latitude,deg_free=20) %>% 
+  step_pca(matches("(SF$)|(Gr_Liv)"))#将SF结尾的,和包含Gr_Liv的特征做主成分回归
+
+#行采样,对不平衡数据进行二次采样,上采样下采样
+recipe(Sale_Price~Neighborhood+Gr_Liv_Area+Year_Built+Bldg_Type+Latitude,
+       data=ames_train) %>% 
+  step_log(Gr_Liv_Area,base=10) %>% 
+  step_other(Neighborhood,threshold=0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(~Gr_Liv_Area:starts_with("Bldg_Type_")) %>% 
+  step_ns(Latitude,deg_free=20) %>% 
+  step_pca(matches("(SF$)|(Gr_Liv)")) %>% 
+  step_downsample(Sale_Price)#基于themis包
+
+#一般变换,强烈建议直接在数据内操作而不要在recipe中操作
+step_mutate()
+
+#整理
+ames_rec=
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + 
+           Latitude + Longitude, data = ames_train) %>% 
+  step_log(Gr_Liv_Area,base=10) %>% 
+  step_other(Neighborhood,threshold=0.01) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(~Gr_Liv_Area:starts_with("Bldg_Type_")) %>% 
+  step_ns(Latitude,Longitude,deg_free=20)
+#调用tidy(),会给出配方步骤摘要
+tidy(ames_rec)
+
+#设置step的id,使其在tidy()中容易识读,特别是多次用到同一个方法时
+ames_rec=
+  recipe(Sale_Price ~ Neighborhood + Gr_Liv_Area + Year_Built + Bldg_Type + 
+           Latitude + Longitude, data = ames_train) %>% 
+  step_log(Gr_Liv_Area,base=10) %>% 
+  step_other(Neighborhood,threshold=0.01,id="Other_Neighbor") %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_interact(~Gr_Liv_Area:starts_with("Bldg_Type_")) %>% 
+  step_ns(Latitude,Longitude,deg_free=20)
+tidy(ames_rec)
+#fit the workflow
+lm_wflow=
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(ames_rec)
+lm_fit=fit(lm_wflow,ames_train)
+
+#可以再次调用tidy()方法和我们指定的id标识符，以获得应用step_other()的结果
+estimated_recipe=
+  lm_fit %>% 
+  extract_recipe(estimated=TRUE)
+tidy(estimated_recipe,id="Other_Neighbor")#可以看到step_other步中哪些没有被合并
+tidy(estimated_recipe,number=2)#知道是第几步也可以直接选取
+
+
+#Column Roles,给那些非特征或结局的列设置Role
+ames_rec %>% 
+  update_role(address,new_role="street address")
