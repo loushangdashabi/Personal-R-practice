@@ -14,3 +14,5 @@ Tidy design principles: https://design.tidyverse.org/
 Causal Inference: What If. R and Stata code for Exercises: https://remlapmot.github.io/cibookex-r/
 
 jiebaR中文分词: http://qinwenfeng.com/jiebaR/
+
+The Epidemiologist R Handbook: https://epirhandbook.com/en/index.html
