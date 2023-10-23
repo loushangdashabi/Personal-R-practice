@@ -16,3 +16,5 @@ Causal Inference: What If. R and Stata code for Exercises: https://remlapmot.git
 jiebaR中文分词: http://qinwenfeng.com/jiebaR/
 
 The Epidemiologist R Handbook: https://epirhandbook.com/en/index.html
+
+Stan User’s Guide: https://mc-stan.org/docs/stan-users-guide/index.html
