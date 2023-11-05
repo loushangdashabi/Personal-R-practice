@@ -22,3 +22,5 @@ Stan User’s Guide: https://mc-stan.org/docs/stan-users-guide/index.html
 Statistics, Data, Science: https://m-clark.github.io/  (有很多贝叶斯统计和混合效应模型的教程)
 
 Beyond Multiple Linear Regression: https://bookdown.org/roback/bookdown-BeyondMLR/ (混合效应模型)
+
+GLMM FAQ: https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html#inference-and-confidence-intervals
