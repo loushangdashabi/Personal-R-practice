@@ -34,3 +34,12 @@ family %>%
                names_to=c(".value","child"),
                names_sep="_",
                values_drop_na=TRUE)
+
+#长变宽
+load("Tidyverse/Datas/animals.rda")
+setDT(animals)
+dcast(animals,Year~Type,value="Heads",fill=0)
+
+#多个列名列和多个值列的情况
+dcast(as.data.table(us_rent_income),
+      GEOID+NAME~variable,value = c("estimate", "moe"))
