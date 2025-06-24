@@ -24,3 +24,5 @@ Statistics, Data, Science: https://m-clark.github.io/  (有很多贝叶斯统计
 Beyond Multiple Linear Regression: https://bookdown.org/roback/bookdown-BeyondMLR/ (混合效应模型)
 
 GLMM FAQ: https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html#inference-and-confidence-intervals
+
+在 R 中使用 Mesa 建立 Agent-based model: https://loushangdashabi.github.io/
