@@ -26,3 +26,5 @@ Beyond Multiple Linear Regression: https://bookdown.org/roback/bookdown-BeyondML
 GLMM FAQ: https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html#inference-and-confidence-intervals
 
 在 R 中使用 Mesa 建立 Agent-based model: https://loushangdashabi.github.io/
+
+ITS: https://doh-pmp-epi.quarto.pub/interrupted-time-series-brief-tutorial/
